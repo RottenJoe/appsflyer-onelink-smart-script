@@ -121,6 +121,7 @@ var SNAPCHAT_CLICK_ID = 'sccid';
 var TIKTOK_CLICK_ID = 'ttclid';
 var GBRAID = 'gbraid';
 var WBRAID = 'wbraid';
+var FORWARD_PARAMETERS_LIST = [GOOGLE_CLICK_ID, FACEBOOK_CLICK_ID, TWITTER_CLICK_ID, SNAPCHAT_CLICK_ID, TIKTOK_CLICK_ID, GBRAID, WBRAID];
 var UTM_SOURCE = 'utm_source';
 var ASSOCIATED_AD_KEYWORD = 'keyword';
 var AF_KEYWORDS = 'af_keywords';
@@ -483,7 +484,7 @@ var removeExpiredLocalStorageItems = function removeExpiredLocalStorageItems() {
 };
 function aggregateValuesFromParameters() {
   var parameters = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
-  var aggregateValues = [];
+  var aggregateValues = FORWARD_PARAMETERS_LIST.slice();
   Object.values(parameters).forEach(function (value) {
     if (value && value.keys && Array.isArray(value.keys)) {
       value.keys.forEach(function (key) {
@@ -737,29 +738,42 @@ function getParameterValueFromURL(url, parameter) {
   var params = new URLSearchParams(url);
   return params.get(parameter);
 }
-function updateFinalUrlWithForwardParameters(url, forwardParametersList, URLSearchParams) {
-  return forwardParametersList.reduce(function (updatedUrl, parameterName) {
-    var parameterValue = getParameterValueFromURL(URLSearchParams, parameterName);
+function updateFinalUrlWithForwardParameters(url, forwardParametersList, forwardParameters) {
+  var updatedUrl = new URL(url);
+  forwardParametersList.forEach(function (parameterName) {
+    var parameterValue = forwardParameters.get(parameterName);
     if (parameterValue) {
       console.debug("The URL contains forwarding parameter ".concat(parameterName, "."));
-      return "".concat(updatedUrl, "&").concat(parameterName, "=").concat(encodeURIComponent(parameterValue));
+      updatedUrl.searchParams.set(parameterName, parameterValue);
     }
-    return updatedUrl;
-  }, url);
+  });
+  return updatedUrl.href;
 }
-var processTrackingParameters = function processTrackingParameters(destinationURL) {
-  var forwardParametersList = [GOOGLE_CLICK_ID, FACEBOOK_CLICK_ID, TWITTER_CLICK_ID, SNAPCHAT_CLICK_ID, TIKTOK_CLICK_ID, GBRAID, WBRAID];
+var processTrackingParameters = function processTrackingParameters(destinationURL, currentURLParams) {
+  var forwardParameters = new URLSearchParams(window.location.search);
+  var hasCurrentClickId = FORWARD_PARAMETERS_LIST.some(function (parameterName) {
+    return !!forwardParameters.get(parameterName);
+  });
+  if (!hasCurrentClickId) {
+    forwardParameters = new URLSearchParams();
+    // Use one selected campaign record; never fill gaps from older campaigns.
+    FORWARD_PARAMETERS_LIST.concat([ASSOCIATED_AD_KEYWORD]).forEach(function (parameterName) {
+      if (currentURLParams[parameterName]) {
+        forwardParameters.set(parameterName, decodeURIComponent(currentURLParams[parameterName]));
+      }
+    });
+  }
 
   //DELINIT-1888 - for supporting postbacks for GCLID and FBCLID we need to fdorward them to the final URL
-  destinationURL = updateFinalUrlWithForwardParameters(destinationURL, forwardParametersList, window.location.search);
+  destinationURL = updateFinalUrlWithForwardParameters(destinationURL, FORWARD_PARAMETERS_LIST, forwardParameters);
 
   // DELINIT-1888 - specific handling for GCLID - passing the keyword to the final URL and make sure it does not already on the link
-  var hasGclidOnURL = getParameterValueFromURL(window.location.search, GOOGLE_CLICK_ID);
-  var gbraid = getParameterValueFromURL(window.location.search, GBRAID);
-  var wbraid = getParameterValueFromURL(window.location.search, WBRAID);
+  var hasGclidOnURL = forwardParameters.get(GOOGLE_CLICK_ID);
+  var gbraid = forwardParameters.get(GBRAID);
+  var wbraid = forwardParameters.get(WBRAID);
   if (hasGclidOnURL || gbraid || wbraid) {
-    var keywordParam = getParameterValueFromURL(window.location.search, ASSOCIATED_AD_KEYWORD);
-    var hasAfKeywordOnFinalURL = getParameterValueFromURL(destinationURL, AF_KEYWORDS);
+    var keywordParam = forwardParameters.get(ASSOCIATED_AD_KEYWORD);
+    var hasAfKeywordOnFinalURL = new URL(destinationURL).searchParams.get(AF_KEYWORDS);
     if (keywordParam && !hasAfKeywordOnFinalURL) {
       destinationURL = "".concat(destinationURL, "&").concat(AF_KEYWORDS, "=").concat(encodeURIComponent(keywordParam));
     }
@@ -2498,7 +2512,7 @@ saveWebReferrer();
       var webReferrerKeyValue = "&".concat(encodeURIComponent(webReferrer), "=").concat(encodeURIComponent(webReferrerValue));
       finalURL = "".concat(finalURL).concat(webReferrerKeyValue);
     }
-    finalURL = processTrackingParameters(finalURL);
+    finalURL = processTrackingParameters(finalURL, currentURLParams);
     console.debug('Generated OneLink URL', finalURL);
     window.AF_SMART_SCRIPT.displayQrCode = function (htmlId) {
       var qrOptions = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
@@ -2603,7 +2617,7 @@ saveWebReferrer();
     if (['ios', 'android'].includes(lowerCasePlatform)) {
       finalURL = finalURL.replace('af_media_source', 'pid').replace('af_campaign', 'c').replace('af_campaign_id', 'af_c_id');
     }
-    finalURL = processTrackingParameters(finalURL);
+    finalURL = processTrackingParameters(finalURL, currentURLParams);
     console.debug('generate Direct Click URL', finalURL);
     delete window.AF_SMART_SCRIPT.displayQrCode;
     delete window.AF_SMART_SCRIPT.fireImpressionsLink;
