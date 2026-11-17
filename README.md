@@ -40,7 +40,7 @@ Table of contents:
 
 ## Minified build
 
-[scripts/onelink-smart-script-latest.min.js](scripts/onelink-smart-script-latest.min.js) is the compact build for inline use in tag managers with character limits. The readable source remains in `scripts/onelink-smart-script-latest.js`.
+[scripts/onelink-smart-script-latest_min.js](scripts/onelink-smart-script-latest_min.js) is the compact build for inline use in tag managers with character limits. The readable source remains in `scripts/onelink-smart-script-latest.js`.
 
 Regenerate the minified file whenever the readable source changes, using the pinned minifier version:
 
@@ -49,7 +49,7 @@ npm exec --yes --package=terser@5.51.2 -- terser \
   scripts/onelink-smart-script-latest.js \
   --compress --mangle --ecma 5 \
   --comments '/@license|@preserve|copyright|released under.*license/i' \
-  --output scripts/onelink-smart-script-latest.min.js
+  --output scripts/onelink-smart-script-latest_min.js
 ```
 
 This command preserves copyright and license comments and keeps public property names unchanged. Application configuration is supplied separately after the library.
